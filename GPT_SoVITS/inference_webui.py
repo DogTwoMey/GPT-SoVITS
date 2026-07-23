@@ -544,6 +544,14 @@ if model_version in {"v2Pro", "v2ProPlus"}:
 resample_transform_dict = {}
 
 
+def load_audio_tensor(filename):
+    audio_array, sampling_rate = librosa.load(filename, sr=None, mono=False)
+    audio = torch.from_numpy(audio_array)
+    if audio.ndim == 1:
+        audio = audio.unsqueeze(0)
+    return audio, sampling_rate
+
+
 def resample(audio_tensor, sr0, sr1, device):
     global resample_transform_dict
     key = "%s-%s-%s" % (sr0, sr1, str(device))
@@ -559,15 +567,15 @@ def get_spepc(hps, filename, dtype, device, is_v2pro=False):
     # audio = torch.FloatTensor(audio)
 
     sr1 = int(hps.data.sampling_rate)
-    audio, sr0 = torchaudio.load(filename)
+    audio, sr0 = load_audio_tensor(filename)
     if sr0 != sr1:
         audio = audio.to(device)
-        if audio.shape[0] == 2:
+        if audio.shape[0] > 1:
             audio = audio.mean(0).unsqueeze(0)
         audio = resample(audio, sr0, sr1, device)
     else:
         audio = audio.to(device)
-        if audio.shape[0] == 2:
+        if audio.shape[0] > 1:
             audio = audio.mean(0).unsqueeze(0)
 
     maxx = audio.abs().max()
@@ -995,9 +1003,9 @@ def get_tts_wav(
             phoneme_ids0 = torch.LongTensor(phones1).to(device).unsqueeze(0)
             phoneme_ids1 = torch.LongTensor(phones2).to(device).unsqueeze(0)
             fea_ref, ge = vq_model.decode_encp(prompt.unsqueeze(0), phoneme_ids0, refer)
-            ref_audio, sr = torchaudio.load(ref_wav_path)
+            ref_audio, sr = load_audio_tensor(ref_wav_path)
             ref_audio = ref_audio.to(device).float()
-            if ref_audio.shape[0] == 2:
+            if ref_audio.shape[0] > 1:
                 ref_audio = ref_audio.mean(0).unsqueeze(0)
             tgt_sr = 24000 if model_version == "v3" else 32000
             if sr != tgt_sr:

@@ -39,6 +39,14 @@ from sv import SV
 resample_transform_dict = {}
 
 
+def load_audio_tensor(filename):
+    audio_array, sampling_rate = librosa.load(filename, sr=None, mono=False)
+    audio = torch.from_numpy(audio_array)
+    if audio.ndim == 1:
+        audio = audio.unsqueeze(0)
+    return audio, sampling_rate
+
+
 def resample(audio_tensor, sr0, sr1, device):
     global resample_transform_dict
     key = "%s-%s-%s" % (sr0, sr1, str(device))
@@ -769,19 +777,19 @@ class TTS:
             self.prompt_cache["refer_spec"][0] = spec_audio
 
     def _get_ref_spec(self, ref_audio_path):
-        raw_audio, raw_sr = torchaudio.load(ref_audio_path)
+        raw_audio, raw_sr = load_audio_tensor(ref_audio_path)
         raw_audio = raw_audio.to(self.configs.device).float()
         self.prompt_cache["raw_audio"] = raw_audio
         self.prompt_cache["raw_sr"] = raw_sr
 
         if raw_sr != self.configs.sampling_rate:
             audio = raw_audio.to(self.configs.device)
-            if audio.shape[0] == 2:
+            if audio.shape[0] > 1:
                 audio = audio.mean(0).unsqueeze(0)
             audio = resample(audio, raw_sr, self.configs.sampling_rate, self.configs.device)
         else:
             audio = raw_audio.to(self.configs.device)
-            if audio.shape[0] == 2:
+            if audio.shape[0] > 1:
                 audio = audio.mean(0).unsqueeze(0)
 
         maxx = audio.abs().max()
